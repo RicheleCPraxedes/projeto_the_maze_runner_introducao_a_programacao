@@ -74,17 +74,10 @@ O tabuleiro possui células coloridas, cada uma com uma função específica:
 
 - O tabuleiro inicia na célula **Início**;
 - O objetivo é alcançar a célula **Fim**;
-- O percurso contém diferentes tipos de obstáculos e bônus.
-
 ---
 
 ## 💻 Tecnologias Utilizadas
 
-- Linguagem C
-- Lógica de Programação
-- Estruturas Condicionais
-- Estruturas de Repetição
-- Vetores e Matrizes
-- Funções
+- Linguagem Python
 
 ---
