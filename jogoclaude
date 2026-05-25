@@ -1,1 +1,435 @@
+import pygame
+import random
+import math
+import time
 
+# ─── Inicialização ───────────────────────────────────────────────────────────
+pygame.init()
+pygame.font.init()
+
+WIDTH, HEIGHT = 1100, 750
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("The Maze Runner - Jogo de Tabuleiro")
+clock = pygame.time.Clock()
+
+# ─── Cores ───────────────────────────────────────────────────────────────────
+BLACK       = (0,   0,   0)
+WHITE       = (255, 255, 255)
+DARK_GREEN  = (20,  60,  20)
+GREEN       = (34, 139,  34)
+LIGHT_GREEN = (80, 200,  80)
+AMBER       = (255, 180,   0)
+RED         = (200,  30,  30)
+BLUE        = (30,  80, 200)
+GRAY        = (80,  80,  80)
+DARK_GRAY   = (30,  30,  30)
+ORANGE      = (230, 120,   0)
+PURPLE      = (130,  30, 180)
+TEAL        = (0,  160, 150)
+BG_COLOR    = (10,  25,  10)
+PANEL_COLOR = (15,  35,  15)
+BORDER_COL  = (60, 120,  40)
+
+# ─── Fontes ──────────────────────────────────────────────────────────────────
+font_title  = pygame.font.SysFont("couriernew", 28, bold=True)
+font_big    = pygame.font.SysFont("couriernew", 22, bold=True)
+font_med    = pygame.font.SysFont("couriernew", 16, bold=True)
+font_small  = pygame.font.SysFont("couriernew", 13)
+font_tiny   = pygame.font.SysFont("couriernew", 11)
+
+# ─── Definição das casas do tabuleiro ────────────────────────────────────────
+# Tipos: normal | boost | trap | heal | skip | teleport | reverse | griever
+BOARD_EFFECTS = {
+    0:  {"type": "start",    "label": "INÍCIO",     "desc": "Ponto de partida do labirinto!", "color": AMBER},
+    3:  {"type": "boost",    "label": "+3 CASAS",   "desc": "Você achou um atalho no labirinto! Avance 3 casas.", "color": LIGHT_GREEN},
+    6:  {"type": "trap",     "label": "ARMADILHA",  "desc": "Trepadeiras te prendem! Volte 2 casas.", "color": RED},
+    8:  {"type": "skip",     "label": "PERDE TURNO","desc": "Você caiu numa vala! Perde o próximo turno.", "color": ORANGE},
+    11: {"type": "heal",     "label": "SAFE HAVEN", "desc": "Área segura! Recupere 1 ponto de vida.", "color": TEAL},
+    14: {"type": "griever",  "label": "GRIEVER!",   "desc": "Um Griever te ataca! Perde 2 pontos de vida.", "color": PURPLE},
+    16: {"type": "boost",    "label": "+2 CASAS",   "desc": "Corredor limpo! Avance 2 casas.", "color": LIGHT_GREEN},
+    19: {"type": "reverse",  "label": "INVERSÃO",   "desc": "Esporos de cogumelo! Volte 4 casas.", "color": RED},
+    21: {"type": "teleport", "label": "TELEPORTE",  "desc": "Portal do Criador! Vá para a casa 10.", "color": BLUE},
+    24: {"type": "trap",     "label": "QUICKSAND",  "desc": "Areia movediça! Volte 3 casas.", "color": RED},
+    26: {"type": "boost",    "label": "+4 CASAS",   "desc": "Thomas encontrou a saída! Avance 4 casas.", "color": LIGHT_GREEN},
+    28: {"type": "skip",     "label": "VENENOSO",   "desc": "Picada do Griever! Perde o próximo turno.", "color": ORANGE},
+    30: {"type": "end",      "label": "SAÍDA!",     "desc": "Você escapou do Labirinto! VITÓRIA!", "color": AMBER},
+}
+
+TOTAL_SQUARES = 31  # 0 a 30
+
+# ─── Estado do jogo ──────────────────────────────────────────────────────────
+players = [
+    {"name": "Thomas",  "pos": 0, "hp": 5, "skip_turn": False, "color": (80, 160, 255), "emoji": "T"},
+    {"name": "Minho",   "pos": 0, "hp": 5, "skip_turn": False, "color": (255, 100, 80),  "emoji": "M"},
+]
+current_player = 0
+dice_value     = None
+game_state     = "waiting"   # waiting | rolling | moving | effect | gameover
+message_lines  = ["Bem-vindo ao Labirinto!", "Clique em ROLAR DADO para começar."]
+effect_msg     = ""
+winner         = None
+move_anim      = {"active": False, "player": 0, "steps_left": 0, "timer": 0}
+
+# ─── Posições do tabuleiro (serpentina) ──────────────────────────────────────
+def build_board_positions():
+    """Gera posições de casas em formato serpentina (vai e volta)."""
+    positions = []
+    board_x0 = 60
+    board_y0 = 120
+    cols      = 10
+    rows      = 3
+    cell_w    = 70
+    cell_h    = 90
+    total     = cols * rows
+
+    for r in range(rows - 1, -1, -1):   # de baixo para cima
+        row_range = range(cols) if r % 2 == 0 else range(cols - 1, -1, -1)
+        for c in row_range:
+            x = board_x0 + c * cell_w + cell_w // 2
+            y = board_y0 + r * cell_h + cell_h // 2
+            positions.append((x, y))
+            if len(positions) >= TOTAL_SQUARES:
+                return positions
+    return positions
+
+BOARD_POS = build_board_positions()
+
+# ─── Funções auxiliares ───────────────────────────────────────────────────────
+def draw_rounded_rect(surf, color, rect, radius=10, border=0, border_color=None):
+    pygame.draw.rect(surf, color, rect, border_radius=radius)
+    if border and border_color:
+        pygame.draw.rect(surf, border_color, rect, border, border_radius=radius)
+
+def draw_text_center(surf, text, font, color, cx, cy):
+    s = font.render(text, True, color)
+    surf.blit(s, (cx - s.get_width() // 2, cy - s.get_height() // 2))
+
+def draw_text(surf, text, font, color, x, y):
+    s = font.render(text, True, color)
+    surf.blit(s, (x, y))
+
+def get_effect(pos):
+    return BOARD_EFFECTS.get(pos, None)
+
+def effect_color(pos):
+    e = get_effect(pos)
+    if e:
+        return e["color"]
+    return DARK_GRAY
+
+def roll_dice():
+    return random.randint(1, 6)
+
+def apply_effect(player_idx):
+    global current_player, game_state, message_lines, winner
+    p   = players[player_idx]
+    pos = p["pos"]
+    e   = get_effect(pos)
+
+    if e is None:
+        next_turn()
+        return
+
+    t = e["type"]
+    desc = e["desc"]
+
+    if t == "boost":
+        steps = int(e["label"].split("+")[1].split(" ")[0])
+        p["pos"] = min(p["pos"] + steps, TOTAL_SQUARES - 1)
+        message_lines = [f'{p["name"]}: {desc}', f'Avançou para a casa {p["pos"]}!']
+    elif t == "reverse":
+        steps = int(e["label"].split(" ")[1])
+        p["pos"] = max(p["pos"] - steps, 0)
+        message_lines = [f'{p["name"]}: {desc}', f'Voltou para a casa {p["pos"]}!']
+    elif t == "trap":
+        steps = int(e["label"].split(" ")[1])
+        p["pos"] = max(p["pos"] - steps, 0)
+        message_lines = [f'{p["name"]}: {desc}', f'Voltou para a casa {p["pos"]}!']
+    elif t == "skip":
+        p["skip_turn"] = True
+        message_lines = [f'{p["name"]}: {desc}', "Perderá o próximo turno!"]
+    elif t == "heal":
+        p["hp"] = min(p["hp"] + 1, 5)
+        message_lines = [f'{p["name"]}: {desc}', f'HP: {p["hp"]}/5']
+    elif t == "griever":
+        p["hp"] -= 2
+        message_lines = [f'{p["name"]}: {desc}', f'HP restante: {max(p["hp"],0)}/5']
+        if p["hp"] <= 0:
+            p["hp"] = 0
+            message_lines.append(f'{p["name"]} foi eliminado! Derrota!')
+            game_state = "gameover"
+            winner = players[1 - player_idx]["name"]
+            return
+    elif t == "teleport":
+        dest = int(e["desc"].split("casa ")[1].split(".")[0])
+        p["pos"] = dest
+        message_lines = [f'{p["name"]}: {desc}', f'Teletransportado para casa {dest}!']
+    elif t == "end":
+        message_lines = [f'🏆 {p["name"]} escapou do Labirinto!', "VITÓRIA! Parabéns!"]
+        game_state = "gameover"
+        winner = p["name"]
+        return
+    elif t == "start":
+        message_lines = [f'{p["name"]} está no início.', "Boa sorte no Labirinto!"]
+
+    game_state = "effect"
+
+def next_turn():
+    global current_player, game_state, message_lines
+    current_player = 1 - current_player
+    p = players[current_player]
+    if p["skip_turn"]:
+        p["skip_turn"] = False
+        message_lines = [f'{p["name"]} perde este turno!', f'Vez de {players[1-current_player]["name"]}.']
+        current_player = 1 - current_player
+    game_state = "waiting"
+    message_lines = [f'Vez de {players[current_player]["name"]}!', "Clique em ROLAR DADO."]
+
+# ─── Desenho do dado ──────────────────────────────────────────────────────────
+DICE_DOTS = {
+    1: [(0.5, 0.5)],
+    2: [(0.25, 0.25), (0.75, 0.75)],
+    3: [(0.25, 0.25), (0.5, 0.5), (0.75, 0.75)],
+    4: [(0.25, 0.25), (0.75, 0.25), (0.25, 0.75), (0.75, 0.75)],
+    5: [(0.25, 0.25), (0.75, 0.25), (0.5, 0.5), (0.25, 0.75), (0.75, 0.75)],
+    6: [(0.25, 0.2), (0.75, 0.2), (0.25, 0.5), (0.75, 0.5), (0.25, 0.8), (0.75, 0.8)],
+}
+
+def draw_dice(surf, value, x, y, size=80):
+    draw_rounded_rect(surf, (240, 230, 210), (x, y, size, size), radius=14, border=3, border_color=GRAY)
+    if value and value in DICE_DOTS:
+        for dx, dy in DICE_DOTS[value]:
+            cx = int(x + dx * size)
+            cy = int(y + dy * size)
+            pygame.draw.circle(surf, DARK_GRAY, (cx, cy), size // 10)
+
+# ─── Tabuleiro ────────────────────────────────────────────────────────────────
+def draw_board():
+    # Fundo do tabuleiro
+    board_rect = (45, 108, 720, 295)
+    draw_rounded_rect(screen, (18, 45, 18), board_rect, radius=16, border=2, border_color=BORDER_COL)
+
+    for i, (bx, by) in enumerate(BOARD_POS):
+        size = 58
+        rx   = bx - size // 2
+        ry   = by - size // 2
+        col  = effect_color(i)
+
+        # Sombra
+        pygame.draw.rect(screen, (0, 0, 0, 100), (rx + 3, ry + 3, size, size), border_radius=8)
+        # Célula
+        draw_rounded_rect(screen, col, (rx, ry, size, size), radius=8, border=2, border_color=BORDER_COL)
+
+        # Número da casa
+        num_s = font_tiny.render(str(i), True, WHITE if col != AMBER else BLACK)
+        screen.blit(num_s, (rx + 4, ry + 3))
+
+        # Ícone do efeito
+        e = get_effect(i)
+        if e:
+            icon_map = {
+                "boost": "▲", "trap": "▼", "heal": "♥", "skip": "⊘",
+                "griever": "☠", "teleport": "✦", "reverse": "◄", "end": "★", "start": "⚑"
+            }
+            icon = icon_map.get(e["type"], "")
+            if icon:
+                ic = font_med.render(icon, True, WHITE if col not in [AMBER, LIGHT_GREEN] else BLACK)
+                screen.blit(ic, (bx - ic.get_width() // 2, by - ic.get_height() // 2 + 6))
+
+    # Jogadores sobre o tabuleiro
+    for pi, p in enumerate(players):
+        if 0 <= p["pos"] < len(BOARD_POS):
+            px, py = BOARD_POS[p["pos"]]
+            offset = -10 if pi == 0 else 10
+            pygame.draw.circle(screen, BLACK, (px + offset + 1, py + 1), 14)
+            pygame.draw.circle(screen, p["color"], (px + offset, py), 14)
+            pygame.draw.circle(screen, WHITE, (px + offset, py), 14, 2)
+            lbl = font_tiny.render(p["emoji"], True, WHITE)
+            screen.blit(lbl, (px + offset - lbl.get_width() // 2, py - lbl.get_height() // 2))
+
+def draw_legend():
+    """Legenda dos efeitos."""
+    lx, ly = 50, 430
+    draw_rounded_rect(screen, PANEL_COLOR, (lx - 10, ly - 10, 730, 135), radius=12, border=1, border_color=BORDER_COL)
+    draw_text(screen, "LEGENDA DO LABIRINTO:", font_med, AMBER, lx, ly)
+    items = [
+        ("▲ Atalho",     LIGHT_GREEN, lx,       ly + 24),
+        ("▼ Armadilha",  RED,         lx + 160, ly + 24),
+        ("♥ Safe Haven", TEAL,        lx + 320, ly + 24),
+        ("⊘ Perde Turno",ORANGE,      lx + 480, ly + 24),
+        ("☠ Griever",    PURPLE,      lx,       ly + 50),
+        ("✦ Teleporte",  BLUE,        lx + 160, ly + 50),
+        ("◄ Inversão",   RED,         lx + 320, ly + 50),
+        ("★ Saída",      AMBER,       lx + 480, ly + 50),
+    ]
+    for label, col, tx, ty in items:
+        draw_text(screen, label, font_small, col, tx, ty)
+
+def draw_player_panels():
+    """Painéis laterais com info dos jogadores."""
+    px_start = 790
+    for i, p in enumerate(players):
+        py_start = 120 + i * 270
+        is_current = (i == current_player and game_state == "waiting")
+        border = AMBER if is_current else BORDER_COL
+        bg = (25, 55, 25) if is_current else PANEL_COLOR
+        draw_rounded_rect(screen, bg, (px_start, py_start, 290, 230), radius=14, border=2, border_color=border)
+
+        # Nome
+        draw_text_center(screen, p["name"].upper(), font_big, p["color"], px_start + 145, py_start + 28)
+
+        # HP Corações
+        draw_text(screen, "HP:", font_med, WHITE, px_start + 20, py_start + 58)
+        for h in range(5):
+            col = RED if h < p["hp"] else DARK_GRAY
+            draw_text(screen, "♥", font_big, col, px_start + 60 + h * 38, py_start + 53)
+
+        # Posição
+        draw_text(screen, f'Casa: {p["pos"]} / 30', font_med, WHITE, px_start + 20, py_start + 100)
+
+        # Barra de progresso
+        bar_w = 250
+        filled = int(bar_w * p["pos"] / 30)
+        draw_rounded_rect(screen, DARK_GRAY, (px_start + 20, py_start + 128, bar_w, 16), radius=8)
+        if filled > 0:
+            draw_rounded_rect(screen, p["color"], (px_start + 20, py_start + 128, filled, 16), radius=8)
+        draw_text(screen, "INÍCIO", font_tiny, GRAY, px_start + 20, py_start + 148)
+        draw_text(screen, "SAÍDA", font_tiny, GRAY, px_start + 230, py_start + 148)
+
+        if p["skip_turn"]:
+            draw_text_center(screen, "⊘ PERDE TURNO", font_small, ORANGE, px_start + 145, py_start + 175)
+
+        if is_current:
+            draw_text_center(screen, "◄ SUA VEZ ►", font_small, AMBER, px_start + 145, py_start + 205)
+
+def draw_dice_panel():
+    """Painel do dado e mensagens."""
+    dx, dy = 790, 600
+    draw_rounded_rect(screen, PANEL_COLOR, (dx, dy, 290, 120), radius=12, border=1, border_color=BORDER_COL)
+
+    # Dado
+    draw_dice(screen, dice_value, dx + 10, dy + 10, size=70)
+
+    # Mensagem do dado
+    if dice_value:
+        draw_text(screen, f'Dado: {dice_value}', font_big, AMBER, dx + 100, dy + 20)
+
+def draw_message_panel():
+    """Painel de mensagens do jogo."""
+    mx, my = 50, 580
+    draw_rounded_rect(screen, PANEL_COLOR, (mx, my, 725, 110), radius=12, border=1, border_color=BORDER_COL)
+    draw_text(screen, "[ LOG DO LABIRINTO ]", font_med, AMBER, mx + 16, my + 10)
+    for i, line in enumerate(message_lines[-3:]):
+        draw_text(screen, line, font_small, WHITE, mx + 16, my + 35 + i * 22)
+
+def draw_roll_button():
+    """Botão de rolar dado."""
+    bx, by, bw, bh = 790, 720, 290, 45
+    can_roll = game_state == "waiting"
+    col  = GREEN if can_roll else DARK_GRAY
+    bcol = LIGHT_GREEN if can_roll else GRAY
+    draw_rounded_rect(screen, col, (bx, by, bw, bh), radius=10, border=2, border_color=bcol)
+    label = "🎲  ROLAR DADO" if can_roll else "Aguarde..."
+    draw_text_center(screen, label, font_big, WHITE if can_roll else GRAY, bx + bw // 2, by + bh // 2)
+    return pygame.Rect(bx, by, bw, bh)
+
+def draw_gameover():
+    overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+    overlay.fill((0, 0, 0, 180))
+    screen.blit(overlay, (0, 0))
+
+    bx, by, bw, bh = WIDTH // 2 - 250, HEIGHT // 2 - 140, 500, 280
+    draw_rounded_rect(screen, (20, 50, 20), (bx, by, bw, bh), radius=20, border=3, border_color=AMBER)
+
+    draw_text_center(screen, "[ FIM DO JOGO ]", font_title, AMBER, WIDTH // 2, by + 50)
+    draw_text_center(screen, f'VENCEDOR: {winner}', font_big, LIGHT_GREEN, WIDTH // 2, by + 110)
+    draw_text_center(screen, "Pressione R para reiniciar", font_med, WHITE, WIDTH // 2, by + 170)
+    draw_text_center(screen, "ou ESC para sair.", font_med, GRAY, WIDTH // 2, by + 200)
+
+def draw_title():
+    draw_text_center(screen, "THE MAZE RUNNER — JOGO DE TABULEIRO", font_title, AMBER, WIDTH // 2, 45)
+    pygame.draw.line(screen, BORDER_COL, (50, 75), (WIDTH - 50, 75), 2)
+
+def reset_game():
+    global current_player, dice_value, game_state, message_lines, winner
+    for p in players:
+        p["pos"]       = 0
+        p["hp"]        = 5
+        p["skip_turn"] = False
+    current_player = 0
+    dice_value     = None
+    game_state     = "waiting"
+    winner         = None
+    message_lines  = ["Jogo reiniciado!", "Vez de Thomas. Clique em ROLAR DADO."]
+
+# ─── Loop principal ───────────────────────────────────────────────────────────
+running = True
+roll_btn = None
+
+while running:
+    dt = clock.tick(60)
+
+    # ── Eventos ──────────────────────────────────────────────────────────────
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_ESCAPE:
+                running = False
+            if event.key == pygame.K_r and game_state == "gameover":
+                reset_game()
+            if event.key == pygame.K_SPACE and game_state == "waiting":
+                # Rolar dado via teclado
+                dice_value = roll_dice()
+                p = players[current_player]
+                p["pos"] = min(p["pos"] + dice_value, TOTAL_SQUARES - 1)
+                message_lines = [
+                    f'{p["name"]} rolou {dice_value}!',
+                    f'Moveu para a casa {p["pos"]}.'
+                ]
+                game_state = "moving"
+                apply_effect(current_player)
+
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            if roll_btn and roll_btn.collidepoint(event.pos) and game_state == "waiting":
+                dice_value = roll_dice()
+                p = players[current_player]
+                p["pos"] = min(p["pos"] + dice_value, TOTAL_SQUARES - 1)
+                message_lines = [
+                    f'{p["name"]} rolou {dice_value}!',
+                    f'Moveu para a casa {p["pos"]}.'
+                ]
+                game_state = "moving"
+                apply_effect(current_player)
+
+            if game_state == "effect":
+                next_turn()
+
+    # ── Renderização ─────────────────────────────────────────────────────────
+    screen.fill(BG_COLOR)
+
+    # Grade de fundo sutil
+    for gx in range(0, WIDTH, 40):
+        pygame.draw.line(screen, (20, 50, 20), (gx, 0), (gx, HEIGHT), 1)
+    for gy in range(0, HEIGHT, 40):
+        pygame.draw.line(screen, (20, 50, 20), (0, gy), (WIDTH, gy), 1)
+
+    draw_title()
+    draw_board()
+    draw_legend()
+    draw_player_panels()
+    draw_dice_panel()
+    draw_message_panel()
+    roll_btn = draw_roll_button()
+
+    # Instrução de clique após efeito
+    if game_state == "effect":
+        draw_text_center(screen, "[ Clique para continuar ]", font_med, AMBER, WIDTH // 2 - 100, HEIGHT - 20)
+
+    if game_state == "gameover":
+        draw_gameover()
+
+    pygame.display.flip()
+
+pygame.quit()
