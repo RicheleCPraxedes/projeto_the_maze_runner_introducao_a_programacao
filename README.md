@@ -12,6 +12,9 @@ O jogo **The Maze Runner** consiste em uma disputa entre dois jogadores em um ta
 
 Cada jogador deve utilizar estratégia e sorte nos lançamentos de dados para avançar pelo tabuleiro e sobreviver aos efeitos especiais de cada célula.
 
+<img width="862" height="472" alt="image" src="https://github.com/user-attachments/assets/5a7b573e-66b4-4d42-b8cb-86c817a657a1" />
+
+
 ---
 
 ## 🎯 Objetivo do Jogo
