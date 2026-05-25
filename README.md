@@ -1,7 +1,7 @@
 # projeto_the_maze_runner_introducao_a_programacao
 # 🎮 The Maze Runner
 
-Projeto desenvolvido para a disciplina de **Introdução à Computação I** da  
+Projeto desenvolvido para a disciplina de **Introdução à programação I** da  
 **Universidade Federal Rural de Pernambuco (UFRPE)**.
 
 ---
