@@ -1,1 +1,219 @@
+import pygame
+import random
+import sys
 
+# =========================
+# CONFIGURAÇÕES
+# =========================
+pygame.init()
+
+LARGURA = 1000
+ALTURA = 600
+
+TELA = pygame.display.set_mode((LARGURA, ALTURA))
+pygame.display.set_caption("The Maze Runner - Jogo de Tabuleiro")
+
+FPS = 60
+clock = pygame.time.Clock()
+
+# CORES
+BRANCO = (255, 255, 255)
+PRETO = (0, 0, 0)
+VERMELHO = (220, 50, 50)
+AZUL = (50, 100, 255)
+VERDE = (50, 200, 100)
+AMARELO = (255, 220, 0)
+CINZA = (180, 180, 180)
+
+# FONTES
+fonte = pygame.font.SysFont("arial", 28)
+fonte_pequena = pygame.font.SysFont("arial", 22)
+
+# =========================
+# TABULEIRO
+# =========================
+TOTAL_CASAS = 20
+TAMANHO_CASA = 45
+
+# Efeitos das casas
+# posição : efeito
+efeitos = {
+    3: "armadilha",
+    5: "boost",
+    8: "volta",
+    11: "boost",
+    14: "armadilha",
+    17: "volta"
+}
+
+# =========================
+# JOGADORES
+# =========================
+jogadores = [
+    {
+        "nome": "Jogador 1",
+        "pos": 0,
+        "cor": AZUL
+    },
+    {
+        "nome": "Jogador 2",
+        "pos": 0,
+        "cor": VERMELHO
+    }
+]
+
+turno = 0
+mensagem = "Pressione ESPAÇO para jogar o dado"
+
+# =========================
+# FUNÇÕES
+# =========================
+def desenhar_tabuleiro():
+    for i in range(TOTAL_CASAS):
+
+        x = 40 + i * (TAMANHO_CASA + 5)
+        y = ALTURA // 2
+
+        cor = CINZA
+
+        if i in efeitos:
+            if efeitos[i] == "armadilha":
+                cor = VERMELHO
+            elif efeitos[i] == "boost":
+                cor = VERDE
+            elif efeitos[i] == "volta":
+                cor = AMARELO
+
+        pygame.draw.rect(
+            TELA,
+            cor,
+            (x, y, TAMANHO_CASA, TAMANHO_CASA)
+        )
+
+        texto = fonte_pequena.render(str(i), True, PRETO)
+        TELA.blit(texto, (x + 12, y + 10))
+
+
+def desenhar_jogadores():
+    for j in jogadores:
+
+        x = 40 + j["pos"] * (TAMANHO_CASA + 5) + 10
+        y = ALTURA // 2 - 30
+
+        pygame.draw.circle(
+            TELA,
+            j["cor"],
+            (x + 10, y),
+            15
+        )
+
+
+def aplicar_efeito(jogador):
+    global mensagem
+
+    pos = jogador["pos"]
+
+    if pos in efeitos:
+
+        efeito = efeitos[pos]
+
+        if efeito == "armadilha":
+            jogador["pos"] = max(0, jogador["pos"] - 2)
+            mensagem = f"{jogador['nome']} caiu em ARMADILHA! Voltou 2 casas."
+
+        elif efeito == "boost":
+            jogador["pos"] = min(TOTAL_CASAS - 1, jogador["pos"] + 2)
+            mensagem = f"{jogador['nome']} recebeu BOOST! Avançou 2 casas."
+
+        elif efeito == "volta":
+            jogador["pos"] = max(0, jogador["pos"] - 1)
+            mensagem = f"{jogador['nome']} escorregou! Voltou 1 casa."
+
+    else:
+        mensagem = f"{jogador['nome']} caiu em uma casa segura."
+
+
+def jogar_dado():
+    return random.randint(1, 6)
+
+
+# =========================
+# LOOP PRINCIPAL
+# =========================
+rodando = True
+
+while rodando:
+
+    clock.tick(FPS)
+
+    TELA.fill((30, 30, 30))
+
+    # Eventos
+    for evento in pygame.event.get():
+
+        if evento.type == pygame.QUIT:
+            rodando = False
+
+        if evento.type == pygame.KEYDOWN:
+
+            if evento.key == pygame.K_SPACE:
+
+                jogador_atual = jogadores[turno]
+
+                dado = jogar_dado()
+
+                jogador_atual["pos"] += dado
+
+                # Limite máximo
+                if jogador_atual["pos"] >= TOTAL_CASAS:
+                    jogador_atual["pos"] = TOTAL_CASAS - 1
+
+                mensagem = (
+                    f"{jogador_atual['nome']} tirou {dado} no dado!"
+                )
+
+                aplicar_efeito(jogador_atual)
+
+                # Verifica vitória
+                if jogador_atual["pos"] == TOTAL_CASAS - 1:
+                    mensagem = f"{jogador_atual['nome']} venceu o labirinto!"
+
+                else:
+                    # Próximo turno
+                    turno = (turno + 1) % 2
+
+    # Desenhar elementos
+    desenhar_tabuleiro()
+    desenhar_jogadores()
+
+    # Texto do turno
+    texto_turno = fonte.render(
+        f"Turno: {jogadores[turno]['nome']}",
+        True,
+        BRANCO
+    )
+
+    TELA.blit(texto_turno, (40, 80))
+
+    # Mensagem
+    texto_msg = fonte_pequena.render(
+        mensagem,
+        True,
+        BRANCO
+    )
+
+    TELA.blit(texto_msg, (40, 130))
+
+    # Instrução
+    instrucao = fonte_pequena.render(
+        "Pressione ESPAÇO para jogar o dado",
+        True,
+        BRANCO
+    )
+
+    TELA.blit(instrucao, (40, 170))
+
+    pygame.display.update()
+
+pygame.quit()
+sys.exit()
