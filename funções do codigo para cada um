@@ -1,0 +1,8 @@
+🎮 JOGO — Lógica e controle central
+Engloba a inicialização do pygame, o loop principal e o gerenciamento de estados. O jogo opera por uma máquina de estados (waiting → rolling → moving → effect → gameover) que controla o que o jogador pode fazer a cada momento. O loop principal captura eventos de teclado e mouse, decide quando rolar o dado, aplica efeitos das casas via apply_effect(), passa a vez com next_turn() e detecta condições de vitória ou derrota. A função reset_game() restaura tudo ao estado inicial. O dado é simulado por roll_dice() com random.randint(1,6).
+
+👤 JOGADOR — Dados, painéis e interação
+Cada jogador é um dicionário com nome, posição, HP, cor, ícone e flag de turno perdido. A lógica de apply_effect() modifica esses atributos diretamente — avançando, recuando, curando, punindo ou eliminando o jogador. A renderização do painel lateral (draw_player_panels()) exibe nome, corações de HP, casa atual, barra de progresso e indicadores de turno ativo ou turno perdido. A interação acontece via clique no botão "Rolar Dado" ou pela tecla SPACE.
+
+🗺️ TABULEIRO — Layout, casas e efeitos visuais
+O tabuleiro é construído por build_board_positions(), que gera 31 casas em formato serpentina (zigue-zague em 3 linhas). O dicionário BOARD_EFFECTS mapeia casas específicas a efeitos como boost, trap, heal, skip, teleport, griever e end, cada um com cor, ícone e descrição próprios. A função draw_board() renderiza cada célula com sua cor de efeito, número, ícone e os tokens dos jogadores sobrepostos. A legenda (draw_legend()) explica cada símbolo, e o painel de mensagens (draw_message_panel()) registra os eventos recentes da partida.
