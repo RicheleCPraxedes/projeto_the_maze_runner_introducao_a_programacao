@@ -1,8 +1,13 @@
+
 """
 tabuleiro.py - Define o tabuleiro e as cores do jogo The Maze Runner.
+
+RESPONSABILIDADE: Estrutura do tabuleiro (sequência de células, posições no
+                  grid, cores e descrições de cada tipo de célula).
 """
 
-# Sequência de células percorridas em ordem (formato serpentina)
+# REQUISITO: Sequência de células percorridas em ordem (formato serpentina)
+# Cada string representa o tipo/cor da célula naquela posição do caminho
 CELULAS = [
     "inicio",    # 0
     "branco",    # 1
@@ -32,13 +37,14 @@ CELULAS = [
     "amarelo",   # 25
     "verde",     # 26
     "preto",     # 27
-    "fim",       # 28
+    "fim",       # 28 — célula de vitória
 ]
 
+# REQUISITO: Constantes derivadas do tabuleiro usadas por jogo.py e interface.py
 TOTAL_CELULAS = len(CELULAS)
 INDICE_FIM = TOTAL_CELULAS - 1
 
-# Cores RGB para cada tipo de célula
+# REQUISITO: Cores RGB para renderização de cada tipo de célula
 CORES_RGB = {
     "inicio":   (30,  30,  30),
     "fim":      (255, 215,  0),
@@ -50,7 +56,7 @@ CORES_RGB = {
     "preto":    (20,   20,  20),
 }
 
-# Cor do texto sobre cada célula
+# Cor do texto exibido sobre cada tipo de célula
 TEXTO_COR = {
     "inicio":   (255, 255, 255),
     "fim":      (20,   20,  20),
@@ -62,7 +68,7 @@ TEXTO_COR = {
     "preto":    (255, 255, 255),
 }
 
-# Descrição do efeito de cada célula
+# REQUISITO: Descrição textual do efeito de cada célula (exibida no log)
 DESCRICAO = {
     "inicio":   "Início — sem efeito",
     "fim":      "🏁 FIM — você venceu!",
@@ -74,40 +80,42 @@ DESCRICAO = {
     "preto":    "Volta para o início!",
 }
 
-# Coordenadas (coluna, linha) de cada célula no grid 10x3
-# Linha 0 = topo, linha 1 = meio, linha 2 = base
-# O tabuleiro tem formato de serpentina:
-#   Linha 0: células 0-9  (esq→dir)
-#   Coluna 9: células 10-14 (cima→baixo, linhas 0→2... na col direita)
-#   Linha 2: células 15-24 (dir→esq)
-#   Coluna 0: células 25-27 (baixo→cima)
-#   Célula 28 (fim) = posição especial no centro-esquerda
+# REQUISITO: Coordenadas (coluna, linha) de cada célula no grid 10×6
+# O tabuleiro percorre em serpentina:
+#   Linha 0:   células  0-9   (esq → dir)
+#   Coluna 9:  células 10-14  (cima → baixo, linhas 1-5)
+#   Linha 5:   células 15-23  (dir → esq, colunas 8→0)
+#   Coluna 0:  células 24-26  (baixo → cima, linhas 4→2)
+#   Célula 27 → (0, 1)
+#   Célula 28 (fim) → (1, 1) — posição especial no centro-esquerda
 GRID_POS: list[tuple[int, int]] = []
 
-# Linha 0, colunas 0-9 (esq → dir) → índices 0-9  (10 células)
+# Linha 0, colunas 0-9 → índices 0-9
 for c in range(10):
     GRID_POS.append((c, 0))
 
-# Coluna 9, linhas 1-5 (cima → baixo) → índices 10-14  (5 células)
+# Coluna 9, linhas 1-5 → índices 10-14
 for r in range(1, 6):
     GRID_POS.append((9, r))
 
-# Linha 5, colunas 8→0 (dir → esq) → índices 15-23  (9 células)
+# Linha 5, colunas 8→0 → índices 15-23
 for c in range(8, -1, -1):
     GRID_POS.append((c, 5))
 
-# Coluna 0, linhas 4→2 (baixo → cima) → índices 24-26  (3 células)
+# Coluna 0, linhas 4→2 → índices 24-26
 for r in range(4, 1, -1):
     GRID_POS.append((0, r))
 
 # Célula 27 → (0, 1)
 GRID_POS.append((0, 1))
 
-# Célula 28 (fim) → (1, 1) centro-esquerda
+# Célula 28 (fim) → (1, 1)
 GRID_POS.append((1, 1))
 
 
+# REQUISITO: Função auxiliar — retorna o tipo de célula dado um índice
 def cor_da_celula(indice: int) -> str:
+    """Retorna o nome do tipo da célula na posição 'indice'."""
     if 0 <= indice < TOTAL_CELULAS:
         return CELULAS[indice]
     return "fim"
